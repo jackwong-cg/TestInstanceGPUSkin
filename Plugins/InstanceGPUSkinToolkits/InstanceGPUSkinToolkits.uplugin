@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "InstanceGPUSkinToolkits",
+	"Description": "",
+	"Category": "Other",
+	"CreatedBy": "junjiehuang",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "InstanceGPUSkinToolkits",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}

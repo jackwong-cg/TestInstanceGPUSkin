@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{AF5A21D5-40F1-EA10-9F8F-41A333B431F1}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "TestInstanceGPUSkin",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
