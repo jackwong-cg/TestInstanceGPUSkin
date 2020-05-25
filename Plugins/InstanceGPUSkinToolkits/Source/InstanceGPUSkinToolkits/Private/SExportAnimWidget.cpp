@@ -189,20 +189,10 @@ void SaveRGBA16FloatTexture(TArray<FFloat16Color>& imgBuf, FString GenerateFileP
 	FAssetRegistryModule::AssetCreated(NewBoneLut);
 	NewBoneLut->UpdateResource();
 	Pkg->SetDirtyFlag(true);
-	//NewBoneLut->PostEditChange();
 
 	TArray<UPackage*> PackagesToSave;
 	PackagesToSave.Add(NewBoneLut->GetOutermost());
 	FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, true, /*bPromptToSave=*/ false);
-
-	//TArray<UObject*>Textures;
-	//Textures.Add(NewBoneLut);
-	//AssetTools.ExportAssetsWithDialog(Textures, true);
-	//bool ret = SavePackageHelper(Pkg, PackageName);
-	//if (ret == false)
-	//{
-	//	UE_LOG(LogTemp, Error, TEXT("Save texture %s failed! Error - LockMip(0) failed!"), *PackageName);
-	//}
 }
 
 
@@ -234,7 +224,9 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 	imgBuf.AddZeroed(PixelCount);
 	int r = 0;
 	int c = 0;	
-	int totalFrameCount = 0;
+	// 当前使用的纹理已经记录了多少帧
+	int frameCountHasRecord = 0;
+	// 总共记录了多少张纹理
 	int ImageCount = 0;
 
 	TArray<FAssetData> Selection;
@@ -261,10 +253,10 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 
 				// 获取骨骼动画模型
 				FSkeletalMeshModel* skeletalMeshModel = sklMesh->GetImportedModel();
-				// 获取第0个load的网格
+				// 获取第0个lod的网格
 				const FSkeletalMeshLODModel& skeMeshLodMesh = skeletalMeshModel->LODModels[0];
 				TArray<FSoftSkinVertex> arrayVertices;
-				// 获取骨骼mesh的所有顶点在TPose里的骨骼空间坐标 
+				// 获取骨骼mesh的所有顶点在TPose里的信息 
 				skeMeshLodMesh.GetVertices(arrayVertices);
 				int meshVertCount = arrayVertices.Num();
 
@@ -283,15 +275,28 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 				{
 					const FMeshBoneInfo& meshBoneInfo = arrayMeshBoneInfo[boneIndex];
 					arrayBoneData.Add(FBoneData{ meshBoneInfo.ParentIndex, meshBoneInfo.Name });
-					// 打印骨骼信息
-					UE_LOG(LogTemp, Log, TEXT("ParentBoneID = %d, CurBoneName = %s"), meshBoneInfo.ParentIndex, *meshBoneInfo.Name.ToString());
+					//// 打印骨骼信息
+					//UE_LOG(LogTemp, Log, TEXT("ParentBoneID = %d, CurBoneName = %s"), meshBoneInfo.ParentIndex, *meshBoneInfo.Name.ToString());
 				}
 
-				// 遍历动画的所有帧信息
+				// 获取动画帧数
 				int frameCountOfCurAnimSequence = animSeq->GetNumberOfFrames();
+				// 计算存储一帧的动画数据需要多少行像素
 				const int NeedRowsPerFrame = FMath::CeilToInt((float)(meshVertCount) / SizeX);
-				int freeRowsLeft = SizeY / NeedRowsPerFrame - totalFrameCount;
-				if (freeRowsLeft < frameCountOfCurAnimSequence)
+				// 计算存储这个动画还需要多少个像素行
+				int needPixelRows = frameCountOfCurAnimSequence * NeedRowsPerFrame;
+				// 计算还剩余多少个闲置的像素行
+				int freeRowsLeft = SizeY - NeedRowsPerFrame * frameCountHasRecord;
+
+				// 先判断一张纹理是否能够保存这个动画数据
+				if (needPixelRows > SizeY)
+				{
+					UE_LOG(LogTemp, Error, TEXT("纹理太小(需要 %d 行, 最多只有 %d 行), 不足以保存动画数据[ %s], 跳过保存此动画!"), needPixelRows, SizeY, *animSeq->GetFullName());
+					continue;
+				}
+
+				// 当前剩余的缓存不够用了，就先把纹理数据给保存下来，并重置缓存
+				if (freeRowsLeft < needPixelRows)
 				{
 					FString GenerateFilePath = inputExportFilePath->GetText().ToString();
 					GenerateFilePath.Append("_Tex_").AppendInt(ImageCount);
@@ -299,7 +304,7 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 
 					imgBuf.Reset(PixelCount);
 					imgBuf.AddZeroed(PixelCount);
-					totalFrameCount = 0;
+					frameCountHasRecord = 0;
 					++ImageCount;
 				}
 
@@ -308,7 +313,7 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 				dataRow.AnimName = animSeq->GetName();
 				dataRow.AnimTimeLength = animSeq->GetTimeAtFrame(frameCountOfCurAnimSequence - 1);
 				dataRow.FrameCount = frameCountOfCurAnimSequence;
-				dataRow.StartFrameRow = totalFrameCount * NeedRowsPerFrame;
+				dataRow.StartFrameRow = frameCountHasRecord * NeedRowsPerFrame;
 				dataRow.EndFrameRow = dataRow.StartFrameRow + NeedRowsPerFrame * frameCountOfCurAnimSequence - 1;
 				dataRow.AnimTexPath = inputExportFilePath->GetText().ToString();
 				dataRow.AnimTexPath.Append("_Tex_").AppendInt(ImageCount);
@@ -316,6 +321,7 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 				dataRow.TexIndex = ImageCount;
 				animDatas.Add(dataRow);
 
+				// 遍历所有的动画帧
 				for (int frameID = 0; frameID < frameCountOfCurAnimSequence; ++frameID)
 				{
 					TMap<FName, FMatrix> mapBoneMatrix;
@@ -342,15 +348,14 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 						mapBoneIDMatrix.Add(boneIndex, boneMatrix);
 					}
 					
-					// 遍历网格
+					int curVertexIndexG = 0;
+					// 遍历所有的子网格
 					for (int sectionIndex = 0; sectionIndex < skeMeshLodMesh.Sections.Num(); ++sectionIndex)
 					{
 						const FSkelMeshSection& skelMeshSection = skeMeshLodMesh.Sections[sectionIndex];
-						// 网格的顶点数
+						// 子网格的顶点数
 						const int vertCount = skelMeshSection.SoftVertices.Num();
-						// 计算一个动画帧下所有网格顶点占据的像素行数
-						const int rowsPerFrame = FMath::CeilToInt((float)(vertCount) / SizeX);
-						// 遍历所有顶点
+						// 遍历子网格所有顶点
 						for (int vertexIndex = 0; vertexIndex < vertCount; ++vertexIndex)
 						{
 							// 计算顶点蒙皮后的局部空间坐标
@@ -369,45 +374,48 @@ FReply SExportAnimWidget::OnExportAnimationToFloatTextureClick()
 							}
 
 							// 计算这个顶点在这一帧所在的像素行和列
-							r = totalFrameCount * rowsPerFrame + vertexIndex / SizeX;
-							c = vertexIndex % SizeX;
+							r = frameCountHasRecord * NeedRowsPerFrame + curVertexIndexG / SizeX;
+							c = curVertexIndexG % SizeX;
 
 							// 计算顶点相对于TPose下的偏移
 							FVector offset = pos - vert.Position;
 							int index = r * SizeX + c;
 							// 把位置偏移数据写道纹理数据里
 							imgBuf[index] = FFloat16Color( FLinearColor(offset));
+
+							++curVertexIndexG;
 						}
 					}
 
 					// 记录的总动画帧数累加
-					++totalFrameCount;
+					++frameCountHasRecord;
 				}
 			}
 		}
 	}
 
+	// 保存最新的那张纹理
 	FString GenerateFilePath = inputExportFilePath->GetText().ToString();
 	GenerateFilePath.Append("_Tex_").AppendInt(ImageCount);
 	SaveRGBA16FloatTexture(imgBuf, GenerateFilePath, SizeX, SizeY);
 
+	// 读取数据表里引用的纹理
 	for (int i = 0; i < animDatas.Num(); ++i)
 	{
 		FTableRowAnimData& data = animDatas[i];
 		FName rowName(*FString::FromInt(i));
-		//data.TargetTex = LoadObject<UTexture2D>(NULL, *(data.AnimTexPath));
 		data.TargetTex = Cast<UTexture2D>(StaticLoadObject(UTexture2D::StaticClass(), NULL, *(data.AnimTexPath)));
 		dataTable->AddRow(rowName, data);
 	}
-	FAssetRegistryModule::AssetCreated(dataTable);
-	dataTable->PostEditChange();
 
+	// 保存数据表
+	dataTable->PostEditChange();
+	dataTable->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(dataTable);
+	Pkg->SetDirtyFlag(true);
 	TArray<UPackage*> PackagesToSave;
 	PackagesToSave.Add(dataTable->GetOutermost());
 	FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, true, /*bPromptToSave=*/ false);
-	//TArray<UObject*> DataTables;
-	//DataTables.Add(dataTable);
-	//AssetTools.ExportAssetsWithDialog(DataTables, true);
 
 	return FReply::Handled();
 }

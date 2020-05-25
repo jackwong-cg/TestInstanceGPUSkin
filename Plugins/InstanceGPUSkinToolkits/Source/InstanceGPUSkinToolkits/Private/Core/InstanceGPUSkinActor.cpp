@@ -41,14 +41,16 @@ void AInstanceGPUSkinActor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 把每个顶点的索引值编码写到对应的颜色的RG通道里
 	if (instanceStaticMesh->GetStaticMesh())
 	{
-		//instanceStaticMesh->OverrideInstanceRandom = true;
 		FStaticMeshLODResources& LODModel = instanceStaticMesh->GetStaticMesh()->RenderData->LODResources[0];
 		{
+			int VertexCount = LODModel.GetNumVertices();
+			int VertexColorCount = LODModel.VertexBuffers.ColorVertexBuffer.GetNumVertices();
 			// Mesh doesn't have a color vertex buffer yet!  We'll create one now.
 			LODModel.VertexBuffers.ColorVertexBuffer.InitFromSingleColor(FColor(255, 0, 0, 255), LODModel.GetNumVertices());
-			for (int i = 0; i < LODModel.GetNumVertices(); i++)
+			for (int i = 0; i < VertexCount; i++)
 			{
 				LODModel.VertexBuffers.ColorVertexBuffer.VertexColor(i) = FColor(i / 255, i % 255, 0, 255);
 			}
@@ -59,15 +61,22 @@ void AInstanceGPUSkinActor::BeginPlay()
 		instanceStaticMesh->MarkRenderStateDirty();
 	}
 
-
+	struct TexAnimRange
+	{
+		int start;
+		int end;
+	};
+	TArray<TexAnimRange> TexAnimRangeLst;
 	TArray<UTexture2D*> TexLst;
 	AnimSeqDatas.Reset(0);
+	// 统计有多少张动画纹理，以及每张动画纹理记录了哪些动画
 	if (AnimDataTable)
 	{
 		FString ContextString;
 		TArray<FName> RowNames = AnimDataTable->GetRowNames();
-		for (auto& name : RowNames)
+		for(int i = 0; i < RowNames.Num(); ++i)
 		{
+			const FName& name = RowNames[i];
 			FTableRowAnimData* pRow = AnimDataTable->FindRow<FTableRowAnimData>(name, ContextString);
 			if (pRow)
 			{
@@ -79,34 +88,59 @@ void AInstanceGPUSkinActor::BeginPlay()
 
 				if (TexLst.Contains(pRow->TargetTex.Get()) == false)
 				{
+					TexAnimRange range;
+					range.start = range.end = i;
 					TexLst.Add(pRow->TargetTex.Get());
+					TexAnimRangeLst.Add(range);
+				}
+				else
+				{
+					TexAnimRangeLst[TexAnimRangeLst.Num() - 1].end = i;
 				}
 			}
 		}
 	}
 
-	if (TexLst.Num() > 2)
+	if (RandomAnimImgIndexStart < 0 || RandomAnimImgIndexStart >= TexLst.Num())
+		RandomAnimImgIndexStart = 0;
+	int StartAnimIndex = TexAnimRangeLst[RandomAnimImgIndexStart].start;
+	int EndAnimIndex = StartAnimIndex;
+	int dst = TexAnimRangeLst.Num() - 1 - StartAnimIndex;
+	if (dst > 2)
+		dst = 2;
+	EndAnimIndex = TexAnimRangeLst[StartAnimIndex + dst].end;
+
+	int AnimLeft = TexLst.Num() - 1 - RandomAnimImgIndexStart;
+	if (AnimLeft > 2)
 	{
-		TexAnimData0 = TexLst[0];
-		TexAnimData1 = TexLst[1];
-		TexAnimData2 = TexLst[2];
+		TexAnimData0 = TexLst[RandomAnimImgIndexStart];
+		TexAnimData1 = TexLst[RandomAnimImgIndexStart + 1];
+		TexAnimData2 = TexLst[RandomAnimImgIndexStart + 2];
 	}
-	else if (TexLst.Num() > 1)
+	else if (AnimLeft > 1)
 	{
-		TexAnimData0 = TexLst[0];
-		TexAnimData1 = TexLst[1];
-		TexAnimData2 = TexLst[1];
+		TexAnimData0 = TexLst[RandomAnimImgIndexStart];
+		TexAnimData1 = TexLst[RandomAnimImgIndexStart + 1];
+		TexAnimData2 = TexLst[RandomAnimImgIndexStart + 1];
 	}
 	else
 	{
-		TexAnimData0 = TexLst[0];
-		TexAnimData1 = TexLst[0];
-		TexAnimData2 = TexLst[0];
+		TexAnimData0 = TexLst[RandomAnimImgIndexStart];
+		TexAnimData1 = TexLst[RandomAnimImgIndexStart];
+		TexAnimData2 = TexLst[RandomAnimImgIndexStart];
 	}
 
-	DynamicMaterialInstance = instanceStaticMesh->CreateDynamicMaterialInstance(0, SrcMaterial);
-	instanceStaticMesh->SetMaterial(0, DynamicMaterialInstance);
+	// 创建动态材质实例
+	int MatCount = instanceStaticMesh->GetNumMaterials();
+	for (int i = 0; i < MatCount; ++i)
+	{
+		UMaterialInterface* srcMat = instanceStaticMesh->GetMaterial(i);
+		UMaterialInstanceDynamic* DynamicMaterialInstance = instanceStaticMesh->CreateDynamicMaterialInstance(i, srcMat);
+		instanceStaticMesh->SetMaterial(i, DynamicMaterialInstance);
+		DynamicMaterialInstances.Add(DynamicMaterialInstance);
+	}
 
+	// 创建实例数据纹理
 	int DynamicTextureWidth = 1024, DynamicTextureHeight = 1024;
 	int TotalCount = DynamicTextureWidth * DynamicTextureHeight;
 	TexInstanceData = UTexture2D::CreateTransient(DynamicTextureWidth, DynamicTextureHeight, PF_FloatRGBA);
@@ -115,7 +149,6 @@ void AInstanceGPUSkinActor::BeginPlay()
 	TexInstanceData->AddressY = TA_Clamp;
 	TexInstanceData->Filter = TF_Nearest;
 	TexInstanceData->RefreshSamplerStates();
-
 	ParamDoubleBuffer.SetNum(2);
 	ParamDoubleBuffer[0].SetNum(TotalCount);
 	ParamDoubleBuffer[1].SetNum(TotalCount);
@@ -125,13 +158,13 @@ void AInstanceGPUSkinActor::BeginPlay()
 		ParamDoubleBuffer[1][i] = FLinearColor(0, 0, 0, 1);
 	}
 
+	// 创建GenerateCount个实例对象
 	FVector location = GetActorLocation();
 	FVector ext = boxRange->GetScaledBoxExtent();
-
 	for (int i = 0; i < GenerateCount; ++i)
 	{
 		FUCrowsInstData inst;
-		inst.AnimSeq = UKismetMathLibrary::RandomIntegerInRange(0, AnimSeqDatas.Num() - 1);
+		inst.AnimSeq = UKismetMathLibrary::RandomIntegerInRange(StartAnimIndex, EndAnimIndex);
 		FTableRowAnimData& animData = AnimSeqDatas[inst.AnimSeq];
 		inst.AnimTimeCounter = 0;
 		inst.AnimPlayRate = UKismetMathLibrary::RandomFloatInRange(0.5f, 1.0f);
@@ -165,29 +198,38 @@ void AInstanceGPUSkinActor::Tick(float DeltaTime)
 		InstanceCountParamName("InstanceCount"),
 		TextureWidthParamName("TextureWidth"),
 		TextureHeightParamName("TextureHeight");
-
-	DynamicMaterialInstance->SetTextureParameterValue(TexParamName, TexInstanceData);
-	DynamicMaterialInstance->SetTextureParameterValue(Anim0ParamName, TexAnimData0);
-	DynamicMaterialInstance->SetTextureParameterValue(Anim1ParamName, TexAnimData1);
-	DynamicMaterialInstance->SetTextureParameterValue(Anim2ParamName, TexAnimData2);
-	DynamicMaterialInstance->SetScalarParameterValue(InstanceCountParamName, InstLst.Num());
-	DynamicMaterialInstance->SetScalarParameterValue(TextureWidthParamName, TexAnimData0->GetSizeX());
-	DynamicMaterialInstance->SetScalarParameterValue(TextureHeightParamName, TexAnimData0->GetSizeY());
+	// 写入动态材质实例的参数
+	for (int i = 0; i < DynamicMaterialInstances.Num(); ++i)
+	{
+		UMaterialInstanceDynamic* DynamicMaterialInstance = DynamicMaterialInstances[i];
+		DynamicMaterialInstance->SetTextureParameterValue(TexParamName, TexInstanceData);
+		DynamicMaterialInstance->SetTextureParameterValue(Anim0ParamName, TexAnimData0);
+		DynamicMaterialInstance->SetTextureParameterValue(Anim1ParamName, TexAnimData1);
+		DynamicMaterialInstance->SetTextureParameterValue(Anim2ParamName, TexAnimData2);
+		DynamicMaterialInstance->SetScalarParameterValue(InstanceCountParamName, InstLst.Num());
+		DynamicMaterialInstance->SetScalarParameterValue(TextureWidthParamName, TexAnimData0->GetSizeX());
+		DynamicMaterialInstance->SetScalarParameterValue(TextureHeightParamName, TexAnimData0->GetSizeY());
+	}
 
 	CurrentBufferIdx = !CurrentBufferIdx;
 
+	// 并行计算每个实例的动画，并把实例信息写入到实例缓冲区
 	ParallelFor(GenerateCount, [&](int32 idx)
 	{
 		FUCrowsInstData* inst = &InstLst[idx];
 		inst->Tick(DeltaTime);
 
+		// R通道对应第几个实例
 		float r = (float)idx;
+		// G通道对应实例引用的动画纹理
 		float g = (float)inst->TexIndex;
+		// B通道对应当前帧动画从第几行像素开始读取
 		float b = (float)inst->CurAnimRowStart;
 		float a = 0;
 		ParamDoubleBuffer[CurrentBufferIdx][idx] = FLinearColor(r, g, b, a);
 	});
 
+	// 把实例缓存写到纹理中
 	uint8 * pData = (uint8*)(&ParamDoubleBuffer[CurrentBufferIdx][0]);
 	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
 		UpdateDynamicTextureCode,
