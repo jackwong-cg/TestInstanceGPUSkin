@@ -61,7 +61,11 @@ FTransform GetBoneTransform(USkeletalMesh* skeletalMesh, UAnimSequence* animSequ
 	if (-1 != boneIndex)
 	{
 		//int trackIndex = skeletalMesh->Skeleton->GetAnimationTrackIndex(boneIndex, animSequence, true);
+#if ENGINE_MINOR_VERSION > 22
 		int trackIndex = skeletalMesh->Skeleton->GetRawAnimationTrackIndex(boneIndex, animSequence);
+#else
+		int trackIndex = skeletalMesh->Skeleton->GetAnimationTrackIndex(boneIndex, animSequence, true);
+#endif
 		if (-1 != trackIndex)
 		{
 			animSequence->GetBoneTransform(boneTransform, trackIndex, time, true);
