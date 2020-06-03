@@ -14,10 +14,10 @@
 	"IsBetaVersion": false,
 	"Installed": false,
 	"Modules": [
-		{
-			"Name": "InstanceGPUSkinToolkits",
-			"Type": "Editor",
-			"LoadingPhase": "Default"
-		}
+    {
+      "Name": "InstanceGPUSkinToolkits",
+      "Type": "Editor",
+      "LoadingPhase": "PreDefault"
+    }
 	]
 }

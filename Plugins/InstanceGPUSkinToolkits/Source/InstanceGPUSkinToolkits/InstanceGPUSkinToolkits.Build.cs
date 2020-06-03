@@ -46,6 +46,7 @@ public class InstanceGPUSkinToolkits : ModuleRules
                 "ImageWrapper",
                 "RenderCore",
                 "RHI",
+                "InstanceGPUSkin",
             }
 			);
 		

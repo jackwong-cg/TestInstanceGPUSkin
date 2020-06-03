@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{AF5A21D5-40F1-EA10-9F8F-41A333B431F1}",
+	"EngineAssociation": "{B1EED7B0-41CE-165F-35F7-94A31733F9DA}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -8,6 +8,12 @@
 			"Name": "TestInstanceGPUSkin",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Wwise",
+			"Enabled": false
 		}
 	]
 }

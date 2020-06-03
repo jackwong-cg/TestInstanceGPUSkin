@@ -43,7 +43,7 @@
 #include "Runtime/AssetRegistry/Public/AssetRegistryModule.h"
 #include "Runtime/RenderCore/Public/RenderUtils.h"
 #include "Engine/Engine.h"
-#include "Core/TableRowAnimData.h"
+#include "TableRowAnimData.h"
 
 #include "UnrealEd/Public/PackageHelperFunctions.h"
 
@@ -60,7 +60,8 @@ FTransform GetBoneTransform(USkeletalMesh* skeletalMesh, UAnimSequence* animSequ
 	boneIndex = skeletalMesh->RefSkeleton.FindBoneIndex(boneName);
 	if (-1 != boneIndex)
 	{
-		int trackIndex = skeletalMesh->Skeleton->GetAnimationTrackIndex(boneIndex, animSequence, true);
+		//int trackIndex = skeletalMesh->Skeleton->GetAnimationTrackIndex(boneIndex, animSequence, true);
+		int trackIndex = skeletalMesh->Skeleton->GetRawAnimationTrackIndex(boneIndex, animSequence);
 		if (-1 != trackIndex)
 		{
 			animSequence->GetBoneTransform(boneTransform, trackIndex, time, true);
