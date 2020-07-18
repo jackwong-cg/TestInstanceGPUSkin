@@ -47,8 +47,10 @@ public:
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-	FReply OnExportAnimationToFloatTextureClick();
+	FReply ExportAsVertexAnimations();
+	FReply ExportAsGpuSkinAnimations();
 	FReply OnExportAnimationToCommonTextureClick();
+	FReply OnExportAnimation();
 
 	void RefreshUI();
 
@@ -64,6 +66,11 @@ protected:
 	TSharedPtr<SEditableTextBox> inputTexWidth;
 	TSharedPtr<SEditableTextBox> inputTexHeight;
 	TSharedPtr<SEditableTextBox> inputExportFilePath;
+	TSharedPtr<SCheckBox> checkBakeAsVertexAnimation;
+	TSharedPtr<SCheckBox> checkAutoRefreshAnimList;
+	TSharedPtr<SCheckBox> checkBoneBlendInfo;
+
+	TArray<FAssetData> CurSelectedAnimAssets;
 	double time = 0, timeAccum = 0;
 	static SExportAnimWidget* sInst;
 	static FDelegateHandle sDelegateHandle;

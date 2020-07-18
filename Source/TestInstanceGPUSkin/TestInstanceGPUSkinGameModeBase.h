@@ -15,3 +15,5 @@ class TESTINSTANCEGPUSKIN_API ATestInstanceGPUSkinGameModeBase : public AGameMod
 	GENERATED_BODY()
 	
 };
+
+

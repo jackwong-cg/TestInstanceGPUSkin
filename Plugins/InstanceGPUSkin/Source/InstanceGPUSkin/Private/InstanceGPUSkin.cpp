@@ -7,6 +7,12 @@
 void FInstanceGPUSkinModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
+
+#if (ENGINE_MINOR_VERSION >= 21)    
+	FString ShaderDirectory = FPaths::Combine(FPaths::ProjectDir(), TEXT("Shaders"));
+	AddShaderSourceDirectoryMapping("/Project", ShaderDirectory);
+#endif
+
 }
 
 void FInstanceGPUSkinModule::ShutdownModule()

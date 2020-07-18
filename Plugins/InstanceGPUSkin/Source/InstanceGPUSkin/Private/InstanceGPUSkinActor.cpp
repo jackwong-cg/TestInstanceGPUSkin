@@ -143,13 +143,13 @@ void AInstanceGPUSkinActor::BeginPlay()
 	EndAnimIndex = TexAnimRangeLst[StartAnimIndex + dst].end;
 
 	int AnimLeft = TexLst.Num() - 1 - RandomAnimImgIndexStart;
-	if (AnimLeft > 2)
+	if (AnimLeft > 1)
 	{
 		TexAnimData0 = TexLst[RandomAnimImgIndexStart];
 		TexAnimData1 = TexLst[RandomAnimImgIndexStart + 1];
 		TexAnimData2 = TexLst[RandomAnimImgIndexStart + 2];
 	}
-	else if (AnimLeft > 1)
+	else if (AnimLeft > 0)
 	{
 		TexAnimData0 = TexLst[RandomAnimImgIndexStart];
 		TexAnimData1 = TexLst[RandomAnimImgIndexStart + 1];
@@ -226,13 +226,13 @@ void AInstanceGPUSkinActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	FName TexParamName(TEXT("InstanceData")),
+	FName TexParamName(TEXT("InstanceDataTex")),
 		Anim0ParamName(TEXT("AnimTex0")),
 		Anim1ParamName(TEXT("AnimTex1")),
 		Anim2ParamName(TEXT("AnimTex2")),
 		InstanceCountParamName("InstanceCount"),
-		TextureWidthParamName("TextureWidth"),
-		TextureHeightParamName("TextureHeight");
+		TextureWidthParamName("AnimTextureWidth"),
+		TextureHeightParamName("AnimTextureHeight");
 	// 写入动态材质实例的参数
 	for (int i = 0; i < DynamicMaterialInstances.Num(); ++i)
 	{
