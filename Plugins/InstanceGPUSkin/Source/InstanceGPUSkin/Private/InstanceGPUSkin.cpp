@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "InstanceGPUSkin.h"
+#include "Runtime/Launch/Resources/Version.h"
+#include "Runtime/RenderCore/Public/ShaderCore.h"
 
 #define LOCTEXT_NAMESPACE "FInstanceGPUSkinModule"
 

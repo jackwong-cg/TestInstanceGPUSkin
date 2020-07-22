@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--LogicCore additions-->
+<root xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <!-- 初始化-->
+  <init>
+    <log text="RenderDocCapture init"/>
+  </init>
+
+  <!-- 拷贝文件或目录到Intermediate/Android/APK  -->
+  <resourceCopies>
+    <log text="RenderDocCapture Start libs copy start...$S(PluginDir)" />
+    <copyDir src="$S(PluginDir)/../../Binaries/ThirdParty/RenderDoc_1_8/Android/" dst="$S(BuildDir)/libs/"/>
+  </resourceCopies>
+
+
+</root>
